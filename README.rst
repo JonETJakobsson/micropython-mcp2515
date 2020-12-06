@@ -1,14 +1,13 @@
 ===================
 Micropython-mcp2515
 ===================
+.. raw:: html
 
+    <img src="mcp2515.jpg" height="200px", align="right">
+    
  
 Communicate with the mcp2515 CAN module using SPI on a micropython board.
 
-.. image:: mcp2515.jpg
-  :width: 100px
-  :align: center
-  :height: 100px
 
 ........
 Features
