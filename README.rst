@@ -3,9 +3,9 @@ Micropython-mcp2515
 ===================
 
  
-Communicate with the mcp2515 CAN module via SPI card.
+Communicate with the mcp2515 CAN module using SPI on a micropython board.
 
-.. image:: mcp2515.png
+.. image:: mcp2515.jpg
   :width: 100px
   :align: center
   :height: 100px
