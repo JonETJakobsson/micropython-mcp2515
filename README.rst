@@ -1,15 +1,14 @@
--------------------
+===================
 Micropython-mcp2515
--------------------
+===================
 
+ 
+Communicate with the mcp2515 CAN module via SPI card.
 
 .. image:: mcp2515.png
-
-  width: 400
-  
-  
-Communicate with the mcp2515 CAN module via SPI. 
-
+  :width: 100px
+  :align: center
+  :height: 100px
 
 ........
 Features
