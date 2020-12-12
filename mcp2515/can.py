@@ -1,7 +1,8 @@
 class CAN:
     """Class providing interface with the mcp2515 module.
-    
-    Must be initiated with a pin objects for miso, mosi, sck and select chip pin.
+
+    Must be initiated with a pin objects for
+    miso, mosi, sck and select chip pin.
     """
 
     def __init__(self, miso, mosi, sck, cs):
@@ -25,7 +26,7 @@ class CAN:
             miso=self.miso,
             mosi=self.mosi,
             sck=self.sck
-            )
+        )
 
         self.cs.off()
 
@@ -33,12 +34,11 @@ class CAN:
         self.cs.on()
         self.spi.deinit()
 
-    
-
     # SPI CONTOLS
+
     def write_register(self, address, data):
         from mcp2515.address import WRITE
-        from ustruct import pack, unpack
+        from ustruct import pack
 
         self.spi_start()
 
@@ -51,7 +51,7 @@ class CAN:
 
     def bitmodify_register(self, address, mask, data):
         from mcp2515.address import BIT_MODIFY
-        from ustruct import pack, unpack
+        from ustruct import pack
 
         self.spi_start()
 
@@ -71,7 +71,7 @@ class CAN:
         self.spi.write(pack("<B", READ))
         self.spi.write(pack("<B", address))
         data = unpack("<B", self.spi.read(1))[0]
-        
+
         self.spi_end()
         return data
 
@@ -82,18 +82,18 @@ class CAN:
         self.spi_start()
 
         self.spi.write(pack("<B", RESET))
-        
+
         self.spi_end()
 
     def read_rx_buffer(self, buffer=0):
         """fetch all data from a recieve buffer.
         First 5 bytes are info, adn last 8 bytes are data
-        
+
         buffer: rx buffer to read from: 0 or 1
         """
         from mcp2515.address import READ_RX_BUFFER_0, READ_RX_BUFFER_1
         from ustruct import pack, unpack
-        
+
         self.spi_start()
 
         if buffer == 0:
@@ -111,15 +111,15 @@ class CAN:
         """Write provided info and data to selected TX buffer"""
         from mcp2515.address import WRITE_TX_BUFFER_0, WRITE_TX_BUFFER_1, WRITE_TX_BUFFER_2
         from ustruct import pack, unpack
-        
+
         self.spi_start()
 
         if buffer == 0:
             self.spi.write(pack("<B", WRITE_TX_BUFFER_0))
-        
+
         if buffer == 1:
             self.spi.write(pack("<B", WRITE_TX_BUFFER_1))
-        
+
         if buffer == 2:
             self.spi.write(pack("<B", WRITE_TX_BUFFER_2))
 
@@ -132,8 +132,8 @@ class CAN:
         self.spi_end()
 
     def request_to_send(self, buffer=0):
-        from ustruct import pack, unpack
-        
+        from ustruct import pack
+
         self.spi_start()
 
         if buffer == 0:
@@ -147,12 +147,10 @@ class CAN:
 
         self.spi_end()
 
-
     def read_status(self):
         """Fetch recieve and transmit status and flags"""
         from mcp2515.address import READ_STATUS
         from ustruct import pack, unpack
-        
 
         self.spi_start()
 
@@ -195,28 +193,30 @@ class CAN:
 
         return status
     # SET MODES ----------------------------
+
     def get_opmod(self):
         from mcp2515.address import CANSTAT
 
         data = self.read_register(CANSTAT)
         opmod = data >> 5
-        
+
         return opmod
 
-    def set_opmod(self, mode): # Set OPMOD on CANCTRL and check that the mode is sucessfuly set
+    # Set OPMOD on CANCTRL and check that the mode is sucessfuly set
+    def set_opmod(self, mode):
         from mcp2515.address import CANCTRL, op_mask
         import time
-        
+
         cur_mode = self.get_opmod()
         if cur_mode == mode >> 5:
             print("mode already set")
             return
         else:
             i = 0
-            while i < 10: # try to set mode 10 times
+            while i < 10:  # try to set mode 10 times
                 self.bitmodify_register(CANCTRL, op_mask, mode)
                 time.sleep_ms(100)
-            
+
                 cur_mode = self.get_opmod()
                 if cur_mode == mode >> 5:
                     print("mode sucessfully set")
@@ -226,18 +226,18 @@ class CAN:
                     i += 1
             print("Failed setting mode")
             return
-    
+
     # initiate CAN communication
     def init(
-        self,
-        bit_rate=500E3,
-        clock_freq=8E6,
-        SJW=1,
-        BTLMODE=1,
-        SAM=0,
-        PRESEG=0,
-        PHSEG1=2,
-        PHSEG2=2):
+            self,
+            bit_rate=500E3,
+            clock_freq=8E6,
+            SJW=1,
+            BTLMODE=1,
+            SAM=0,
+            PRESEG=0,
+            PHSEG1=2,
+            PHSEG2=2):
         """
         Initiate the can controller with selected baudrate.
         bit_rate: CAN bus bit rate
@@ -256,17 +256,26 @@ class CAN:
         self.reset()
         time.sleep_ms(10)
 
-
         print("Entering configuration mode...")
         self.set_opmod(configuration_mode)
 
         print("calulating BRP and setting configuration registers 1, 2 and 3")
-        self._set_timing(bit_rate, clock_freq, SJW, BTLMODE, SAM, PRESEG, PHSEG1, PHSEG2)
+        self._set_timing(bit_rate, clock_freq, SJW, BTLMODE,
+                         SAM, PRESEG, PHSEG1, PHSEG2)
 
         print("Entering normal mode...")
         self.set_opmod(normal_mode)
 
-    def _set_timing(self, bit_rate, clock_freq, SJW, BTLMODE, SAM,  PRESEG, PHSEG1, PHSEG2):
+    def _set_timing(
+            self,
+            bit_rate,
+            clock_freq,
+            SJW,
+            BTLMODE,
+            SAM,
+            PRESEG,
+            PHSEG1,
+            PHSEG2):
         """
         SJW: synchronization Jump Width: 1 to 4, default(1)
         BTLMODE: : PS2 Bit Time Length bit: 0 or 1, default(0)
@@ -280,44 +289,40 @@ class CAN:
         bit_time = 1 / bit_rate
         tq = bit_time / 16
 
-
         # Calculate Baud rate prescaler
         BRP = int((tq * clock_freq) / 2 - 1)
-        #assert BRP % 1 > 0, "warning, bit rate and clock frequency is not compatible"
-        
-        
-        
+        # assert BRP % 1 > 0, "warning, bit-rate and
+        # clock-frequency is not compatible"
+
         # Set configuration register 1
         SJW = SJW - 1  # length of 1 is 0 etc.
         assert len(bin(SJW)) - 2 <= 2, "SJW must be 1 to 4"
         assert len(bin(BRP)) - 2 <= 5, "BRP must be under 31"
-        
+
         self.bitmodify_register(0x2a, 0xc0, SJW << 6)
         self.bitmodify_register(0x2a, 0x3f, BRP)
-        print(hex(self.read_register(0x2a))) # error checking
+        print(hex(self.read_register(0x2a)))  # error checking
 
         # Set configuration register 2
         assert len(bin(BTLMODE)) - 2 <= 1, "BTLMODE must be 0 or 1"
         assert len(bin(SAM)) - 2 <= 1, "SAM must be 0 or 1"
         assert len(bin(PHSEG1)) - 2 <= 3, "PHSEG1 must be 0 to 7"
         assert len(bin(PRESEG)) - 2 <= 3, "PRESEG must be 0 to 7"
-        
+
         self.bitmodify_register(0x29, 0x80, BTLMODE << 7)
         self.bitmodify_register(0x29, 0x40, SAM << 6)
         self.bitmodify_register(0x29, 0x38, PHSEG1 << 3)
         self.bitmodify_register(0x29, 0x07, PRESEG)
         print(hex(self.read_register(0x29)))  # error checking
-        
 
         # Set configuration register 3
         assert len(bin(PHSEG2)) - 2 <= 3, "PHSEG2 must be 0 to 7"
 
         self.bitmodify_register(0x28, 0x07, PHSEG2)
         print(hex(self.read_register(0x28)))  # error checking
-        
-
 
     # Filter and masks (currently not working)
+
     def set_filter(self, id=0x000, filter=0, extendedID=False, clear=False):
         from mcp2515.address import configuration_mode, normal_mode
 
@@ -331,24 +336,25 @@ class CAN:
         else:
             mask_address = 0x24
             ctrl_address = 0x70
-        
-        info = self._prepare_id(id, extendedID)
-        
-        self.write_register(address=address[filter], data=info)
-        self.write_register(address=mask_address, data=[0xff, 0xff, 0x00, 0x00])
 
-        self.bitmodify_register(ctrl_address, 0x60, 0x00) # activate filtering
-            
+        info = self._prepare_id(id, extendedID)
+
+        self.write_register(address=address[filter], data=info)
+        self.write_register(address=mask_address, data=[
+                            0xff, 0xff, 0x00, 0x00])
+
+        self.bitmodify_register(ctrl_address, 0x60, 0x00)  # activate filtering
+
         if clear:
             self.bitmodify_register(0x60, 0x60, 0xff)  # clear filtering
-            self.bitmodify_register(0x70, 0x60, 0xff) # clear filtering
+            self.bitmodify_register(0x70, 0x60, 0xff)  # clear filtering
 
         self.set_opmod(normal_mode)
 
     def _prepare_id(self, id, ext):
 
         id = id & 0x0ffff
-        info = [0,0,0,0]
+        info = [0, 0, 0, 0]
         if ext:
             info[3] = id & 0xff
             info[2] = id >> 8
@@ -365,7 +371,7 @@ class CAN:
 
         return info
 
-    #read messages
+    # read messages
     def read_message(self):
         """returns a dictionary containing message info
         id: message id
@@ -381,14 +387,13 @@ class CAN:
         elif status["RXB1"] == 1:
             info, data = self.read_rx_buffer(buffer=1)
         else:
-            return False# exit if no buffer is full
-        
-        
+            return False  # exit if no buffer is full
+
         id = info[0] << 3 | info[1] >> 5
         if status["extendedID"] == 1:
             id = id << 8 | info[2]
             id = id << 8 | info[3]
-    
+
         data_length = info[4] & 0x0f
 
         if data_length > 0:
@@ -408,7 +413,7 @@ class CAN:
     # Write message
     def write_message(self, id, data_message, rtr=0, extendedID=False):
         """Prepares a message to be sent on available trasmission buffer
-        
+
         id: a standar or extended message id
         data: list of bytes max = 8
         rtr: remote transmission request, if 1, no data is sent, default(0)
@@ -424,31 +429,32 @@ class CAN:
             dlc = data_length
 
         info.append(dlc)
-        
+
         status = self.read_status()
 
         if status["TX0REQ"] == 0:
             self.load_tx_buffer(buffer=0, info=info, data=data_message)
             self.request_to_send(buffer=0)
             TXIF = 0x04
-            self.bitmodify_register(0x2c, TXIF, 0x00) # clear interupt flag
+            self.bitmodify_register(0x2c, TXIF, 0x00)  # clear interupt flag
 
         elif status["TX1REQ"] == 0:
             self.load_tx_buffer(buffer=1, info=info, data=data_message)
             self.request_to_send(buffer=1)
             TXIF = 0x10
-            self.bitmodify_register(0x2c, TXIF, 0x00) # clear interupt flag
+            self.bitmodify_register(0x2c, TXIF, 0x00)  # clear interupt flag
 
         elif status["TX2REQ"] == 0:
             self.load_tx_buffer(buffer=2, info=info, data=data_message)
             self.request_to_send(buffer=2)
             TXIF = 0x20
-            self.bitmodify_register(0x2c, TXIF, 0x00) # clear interupt flag
+            self.bitmodify_register(0x2c, TXIF, 0x00)  # clear interupt flag
 
         else:
-            return # no transmit buffers are available
+            return  # no transmit buffers are available
 
-    def message_available(self): # quick function to check for incoming mesages
+    # quick function to check for incoming messages
+    def message_available(self):
         status = self.rx_status()
         if status["RXB0"] == 1 or status["RXB1"] == 1:
             return True
@@ -457,23 +463,23 @@ class CAN:
 
     # enableing and clearing interrupts -----------------
     def enable_interrupts(
-        self,
-        message_error=False,
-        wake_up=False,
-        errors=False,
-        tx0_empty=False,
-        tx1_empty=False,
-        tx2_empty=False,
-        rx0_full=False,
-        rx1_full=False):
-
+            self,
+            message_error=False,
+            wake_up=False,
+            errors=False,
+            tx0_empty=False,
+            tx1_empty=False,
+            tx2_empty=False,
+            rx0_full=False,
+            rx1_full=False):
         """Enables interrupt conditions that will activate the INT pin.
 
         Note: errors must be cleared by MCU.
-        use clear_message_error(), clear_wake_up() 
+        use clear_message_error(), clear_wake_up()
         and clear_errors() to clear these flags
 
-        tx_empty and rx_full are automatically cleared when reading or writing messages
+        tx_empty and rx_full are automatically cleared
+         when reading or writing messages
 
         """
 
@@ -482,7 +488,7 @@ class CAN:
 
         if wake_up:
             self.bitmodify_register(0x2b, 0x40, 0xff)
-        
+
         if errors:
             self.bitmodify_register(0x2b, 0x20, 0xff)
 
@@ -492,14 +498,14 @@ class CAN:
             self.bitmodify_register(0x2b, 0x08, 0xff)
         if tx2_empty:
             self.bitmodify_register(0x2b, 0x10, 0xff)
-            
+
         if rx0_full:
-            self.bitmodify_register(0x2b, 0x01, 0xff) 
+            self.bitmodify_register(0x2b, 0x01, 0xff)
         if rx1_full:
             self.bitmodify_register(0x2b, 0x02, 0xff)
-    
+
     def clear_message_error(self):
-        self.bitmodify_register(0x2c, 0x80, 0x00) 
+        self.bitmodify_register(0x2c, 0x80, 0x00)
 
     def clear_wake_up(self):
         """Clears the wake-up interrupt flag and wakes-up the device"""
@@ -509,11 +515,13 @@ class CAN:
         self.bitmodify_register(0x2c, 0x20, 0x00)
 
     def which_interrupt(self):
-        """returns information about which interrupt condition triggered the interrupt"""
+        """returns information about which interrupt condition
+         triggered the interrupt"""
         canstat = self.read_register(0x0e)
         i_code = canstat >> 1 & 0x07
 
-        codes = ["No interrupts", "Error", "Wake-up", "TX0", "TX1", "TX2", "RX0", "RX1"]
+        codes = ["No interrupts", "Error", "Wake-up",
+                 "TX0", "TX1", "TX2", "RX0", "RX1"]
         return codes[i_code]
 
     def abort_messages(self):
