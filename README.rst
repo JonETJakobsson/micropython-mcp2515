@@ -8,6 +8,8 @@ Micropython-mcp2515
  
 Communicate with the mcp2515 CAN module using SPI on a micropython board.
 
+Note:
+    Please take a look at this `micropython mcp2515 library <https://github.com/jxltom/micropython-mcp2515/>`_ by jxltom. 
 
 ........
 Features
