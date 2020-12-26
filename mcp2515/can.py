@@ -1,3 +1,9 @@
+from mcp2515.classes import mcp_spi, op_mode, address
+from ustruct import pack, unpack, pack_into
+from machine import SPI
+import utime
+
+
 class CAN:
     """Class providing interface with the mcp2515 module.
 
@@ -6,17 +12,16 @@ class CAN:
     """
 
     def __init__(self, miso, mosi, sck, cs):
-        from machine import SPI
         self.spi = SPI(1)
         self.miso = miso
         self.mosi = mosi
         self.sck = sck
         self.cs = cs
+        self.msgbuf = bytearray(13) # for loading and retrieving messages
+        self.buf8 = bytearray(1) # for reading adresses
 
     # SPI helper methods
     def spi_start(self):
-        from machine import SPI
-
         self.spi.init(
             baudrate=int(10E6),
             polarity=0,
@@ -37,12 +42,9 @@ class CAN:
     # SPI CONTOLS
 
     def write_register(self, address, data):
-        from mcp2515.address import WRITE
-        from ustruct import pack
-
         self.spi_start()
 
-        self.spi.write(pack("<B", WRITE))
+        self.spi.write(pack("<B", mcp_spi.WRITE))
         self.spi.write(pack("<B", address))
         for byte in data:
             self.spi.write(pack("<B", byte))
@@ -50,12 +52,9 @@ class CAN:
         self.spi_end()
 
     def bitmodify_register(self, address, mask, data):
-        from mcp2515.address import BIT_MODIFY
-        from ustruct import pack
-
         self.spi_start()
 
-        self.spi.write(pack("<B", BIT_MODIFY))
+        self.spi.write(pack("<B", mcp_spi.BIT_MODIFY))
         self.spi.write(pack("<B", address))
         self.spi.write(pack("<B", mask))
         self.spi.write(pack("<B", data))
@@ -63,25 +62,21 @@ class CAN:
         self.spi_end()
 
     def read_register(self, address):
-        from mcp2515.address import READ
-        from ustruct import pack, unpack
-
         self.spi_start()
 
-        self.spi.write(pack("<B", READ))
+        self.spi.write(pack("<B", mcp_spi.READ))
         self.spi.write(pack("<B", address))
-        data = unpack("<B", self.spi.read(1))[0]
+        # TODO: load into preallocated buffers
+        self.spi.readinto(self.buf8)
+        #data = unpack("<B", self.spi.read(1))[0]
 
         self.spi_end()
-        return data
+        #return data
 
     def reset(self):
-        from mcp2515.address import RESET
-        from ustruct import pack, unpack
-
         self.spi_start()
 
-        self.spi.write(pack("<B", RESET))
+        self.spi.write(pack("<B", mcp_spi.RESET))
 
         self.spi_end()
 
@@ -91,71 +86,56 @@ class CAN:
 
         buffer: rx buffer to read from: 0 or 1
         """
-        from mcp2515.address import READ_RX_BUFFER_0, READ_RX_BUFFER_1
-        from ustruct import pack, unpack
 
         self.spi_start()
 
         if buffer == 0:
-            self.spi.write(pack("<B", READ_RX_BUFFER_0))
+            self.spi.write(pack("<B", mcp_spi.READ_RX_BUFFER_0))
         if buffer == 1:
-            self.spi.write(pack("<B", READ_RX_BUFFER_1))
+            self.spi.write(pack("<B", mcp_spi.READ_RX_BUFFER_1))
 
-        info = unpack("<5B", self.spi.read(5))
-        data = unpack("<8B", self.spi.read(8))
-
+        self.spi.readinto(self.msgbuf)
         self.spi_end()
-        return info, data
 
-    def load_tx_buffer(self, buffer, info, data):
-        """Write provided info and data to selected TX buffer"""
-        from mcp2515.address import WRITE_TX_BUFFER_0, WRITE_TX_BUFFER_1, WRITE_TX_BUFFER_2
-        from ustruct import pack, unpack
+    def load_tx_buffer(self, buffer):
+        """Write provided load whatever is in msgbuf to selected TX buffer"""
 
         self.spi_start()
 
         if buffer == 0:
-            self.spi.write(pack("<B", WRITE_TX_BUFFER_0))
+            self.spi.write(pack("<B", mcp_spi.WRITE_TX_BUFFER_0))
 
         if buffer == 1:
-            self.spi.write(pack("<B", WRITE_TX_BUFFER_1))
+            self.spi.write(pack("<B", mcp_spi.WRITE_TX_BUFFER_1))
 
         if buffer == 2:
-            self.spi.write(pack("<B", WRITE_TX_BUFFER_2))
+            self.spi.write(pack("<B", mcp_spi.WRITE_TX_BUFFER_2))
 
-        for byte in info:
-            self.spi.write(pack("<B", byte))
-
-        for byte in data:
-            self.spi.write(pack("<B", byte))
-
+        self.spi.write(self.msgbuf)
         self.spi_end()
 
     def request_to_send(self, buffer=0):
-        from ustruct import pack
 
         self.spi_start()
 
         if buffer == 0:
-            self.spi.write(pack("<B", 0x81))
+            self.spi.write(pack("<B", mcp_spi.RTS0))
 
         if buffer == 1:
-            self.spi.write(pack("<B", 0x82))
+            self.spi.write(pack("<B", mcp_spi.RTS1))
 
         if buffer == 2:
-            self.spi.write(pack("<B", 0x84))
+            self.spi.write(pack("<B", mcp_spi.RTS2))
 
         self.spi_end()
 
     def read_status(self):
         """Fetch recieve and transmit status and flags"""
-        from mcp2515.address import READ_STATUS
-        from ustruct import pack, unpack
-
         self.spi_start()
 
-        self.spi.write(pack("<B", READ_STATUS))
-        data = unpack("<B", self.spi.read(1))[0]
+        self.spi.write(pack("<B", mcp_spi.READ_STATUS))
+        self.spi.readinto(self.buf8)
+        data = self.buf8[0]
 
         self.spi_end()
 
@@ -173,13 +153,12 @@ class CAN:
         return status
 
     def rx_status(self):
-        from mcp2515.address import RX_STATUS
-        from ustruct import pack, unpack
 
         self.spi_start()
 
-        self.spi.write(pack("<B", RX_STATUS))
-        data = unpack("<B", self.spi.read(1))[0]
+        self.spi.write(pack("<B", mcp_spi.RX_STATUS))
+        self.spi.readinto(self.buf8)
+        data = self.buf8[0]
 
         self.spi_end()
 
@@ -195,16 +174,13 @@ class CAN:
     # SET MODES ----------------------------
 
     def get_opmod(self):
-        from mcp2515.address import CANSTAT
-
-        data = self.read_register(CANSTAT)
-        opmod = data >> 5
+        self.read_register(address.CANSTAT)
+        opmod = self.buf8[0] >> 5
 
         return opmod
 
     # Set OPMOD on CANCTRL and check that the mode is sucessfuly set
     def set_opmod(self, mode):
-        from mcp2515.address import CANCTRL, op_mask
         import time
 
         cur_mode = self.get_opmod()
@@ -214,7 +190,7 @@ class CAN:
         else:
             i = 0
             while i < 10:  # try to set mode 10 times
-                self.bitmodify_register(CANCTRL, op_mask, mode)
+                self.bitmodify_register(address.CANCTRL, op_mode.op_mask, mode)
                 time.sleep_ms(100)
 
                 cur_mode = self.get_opmod()
@@ -250,21 +226,20 @@ class CAN:
         PRESEG: lengh of propagation segment: default(2)
 
         """
-        from mcp2515.address import configuration_mode, normal_mode
         import time
 
         self.reset()
         time.sleep_ms(10)
 
         print("Entering configuration mode...")
-        self.set_opmod(configuration_mode)
+        self.set_opmod(op_mode.configuration)
 
         print("calulating BRP and setting configuration registers 1, 2 and 3")
         self._set_timing(bit_rate, clock_freq, SJW, BTLMODE,
                          SAM, PRESEG, PHSEG1, PHSEG2)
 
         print("Entering normal mode...")
-        self.set_opmod(normal_mode)
+        self.set_opmod(op_mode.normal)
 
     def _set_timing(
             self,
@@ -299,34 +274,30 @@ class CAN:
         assert len(bin(SJW)) - 2 <= 2, "SJW must be 1 to 4"
         assert len(bin(BRP)) - 2 <= 5, "BRP must be under 31"
 
-        self.bitmodify_register(0x2a, 0xc0, SJW << 6)
-        self.bitmodify_register(0x2a, 0x3f, BRP)
-        print(hex(self.read_register(0x2a)))  # error checking
-
+        self.bitmodify_register(address.CNF1, 0xc0, SJW << 6)
+        self.bitmodify_register(address.CNF1, 0x3f, BRP)
+    
         # Set configuration register 2
         assert len(bin(BTLMODE)) - 2 <= 1, "BTLMODE must be 0 or 1"
         assert len(bin(SAM)) - 2 <= 1, "SAM must be 0 or 1"
         assert len(bin(PHSEG1)) - 2 <= 3, "PHSEG1 must be 0 to 7"
         assert len(bin(PRESEG)) - 2 <= 3, "PRESEG must be 0 to 7"
 
-        self.bitmodify_register(0x29, 0x80, BTLMODE << 7)
-        self.bitmodify_register(0x29, 0x40, SAM << 6)
-        self.bitmodify_register(0x29, 0x38, PHSEG1 << 3)
-        self.bitmodify_register(0x29, 0x07, PRESEG)
-        print(hex(self.read_register(0x29)))  # error checking
+        self.bitmodify_register(address.CNF2, 0x80, BTLMODE << 7)
+        self.bitmodify_register(address.CNF2, 0x40, SAM << 6)
+        self.bitmodify_register(address.CNF2, 0x38, PHSEG1 << 3)
+        self.bitmodify_register(address.CNF2, 0x07, PRESEG)
+
 
         # Set configuration register 3
         assert len(bin(PHSEG2)) - 2 <= 3, "PHSEG2 must be 0 to 7"
 
-        self.bitmodify_register(0x28, 0x07, PHSEG2)
-        print(hex(self.read_register(0x28)))  # error checking
+        self.bitmodify_register(address.CNF3, 0x07, PHSEG2)
 
     # Filter and masks (currently not working)
 
     def set_filter(self, id=0x000, filter=0, extendedID=False, clear=False):
-        from mcp2515.address import configuration_mode, normal_mode
-
-        self.set_opmod(configuration_mode)
+        self.set_opmod(op_mode.configuration)
 
         address = [0x00, 0x04, 0x08, 0x10, 0x14, 0x18]
 
@@ -339,7 +310,7 @@ class CAN:
 
         info = self._prepare_id(id, extendedID)
 
-        self.write_register(address=address[filter], data=info)
+        self.write_register(address=address[filter], data=self.msgbuf[0:4])
         self.write_register(address=mask_address, data=[
                             0xff, 0xff, 0x00, 0x00])
 
@@ -349,13 +320,12 @@ class CAN:
             self.bitmodify_register(0x60, 0x60, 0xff)  # clear filtering
             self.bitmodify_register(0x70, 0x60, 0xff)  # clear filtering
 
-        self.set_opmod(normal_mode)
+        self.set_opmod(op_mode.normal)
 
     def _prepare_id(self, id, ext):
-
-        id = id & 0x0ffff
         info = [0, 0, 0, 0]
         if ext:
+            id = id & 0x1fffffff
             info[3] = id & 0xff
             info[2] = id >> 8
             id = id >> 16
@@ -364,13 +334,14 @@ class CAN:
             info[1] |= 0x08
             info[0] = id >> 5
         else:
+            id = id & 0x7ff
             info[0] = id >> 3
             info[1] = (id & 0x07) << 5
             info[2] = 0
             info[3] = 0
 
-        return info
-
+        pack_into("<4B", self.msgbuf, 0, *info)
+       
     # read messages
     def read_message(self):
         """returns a dictionary containing message info
@@ -383,21 +354,23 @@ class CAN:
         # fetch recieve status
         status = self.rx_status()
         if status["RXB0"] == 1:
-            info, data = self.read_rx_buffer(buffer=0)
+            #info, data = self.read_rx_buffer(buffer=0)
+            self.read_rx_buffer(buffer=0)
         elif status["RXB1"] == 1:
-            info, data = self.read_rx_buffer(buffer=1)
+            #info, data = self.read_rx_buffer(buffer=1)
+            self.read_rx_buffer(buffer=1)
         else:
             return False  # exit if no buffer is full
 
-        id = info[0] << 3 | info[1] >> 5
-        if status["extendedID"] == 1:
-            id = id << 8 | info[2]
-            id = id << 8 | info[3]
+        id = self.msgbuf[0] << 3 | self.msgbuf[1] >> 5
+        if status["extendedID"]:
+            id = id << 8 | self.msgbuf[2]
+            id = id << 8 | self.msgbuf[3]
 
-        data_length = info[4] & 0x0f
+        data_length = self.msgbuf[4] & 0x0f
 
         if data_length > 0:
-            data = data[0:data_length]
+            data = list(self.msgbuf[5:5+data_length])
         else:
             data = list()
 
@@ -411,41 +384,42 @@ class CAN:
         return message
 
     # Write message
-    def write_message(self, id, data_message, rtr=0, extendedID=False):
+    def write_message(self, id, data, rtr=0, extendedID=False):
         """Prepares a message to be sent on available trasmission buffer
 
         id: a standar or extended message id
-        data: list of bytes max = 8
+        message: list of bytes max = 8
         rtr: remote transmission request, if 1, no data is sent, default(0)
         extendedID: Set to True if message ID is extended, else Fales
         """
-        data_length = len(data_message)
+        data_length = len(data)
 
-        info = self._prepare_id(id, extendedID)
+        self._prepare_id(id, extendedID)
 
         if rtr:
             dlc = data_length | 0x40
         else:
             dlc = data_length
 
-        info.append(dlc)
+        self.msgbuf[4] = dlc
+        self.msgbuf[5:5+data_length] = bytearray(data)
 
         status = self.read_status()
 
         if status["TX0REQ"] == 0:
-            self.load_tx_buffer(buffer=0, info=info, data=data_message)
+            self.load_tx_buffer(buffer=0)
             self.request_to_send(buffer=0)
             TXIF = 0x04
             self.bitmodify_register(0x2c, TXIF, 0x00)  # clear interupt flag
 
         elif status["TX1REQ"] == 0:
-            self.load_tx_buffer(buffer=1, info=info, data=data_message)
+            self.load_tx_buffer(buffer=1)
             self.request_to_send(buffer=1)
             TXIF = 0x10
             self.bitmodify_register(0x2c, TXIF, 0x00)  # clear interupt flag
 
         elif status["TX2REQ"] == 0:
-            self.load_tx_buffer(buffer=2, info=info, data=data_message)
+            self.load_tx_buffer(buffer=2)
             self.request_to_send(buffer=2)
             TXIF = 0x20
             self.bitmodify_register(0x2c, TXIF, 0x00)  # clear interupt flag
@@ -517,8 +491,8 @@ class CAN:
     def which_interrupt(self):
         """returns information about which interrupt condition
          triggered the interrupt"""
-        canstat = self.read_register(0x0e)
-        i_code = canstat >> 1 & 0x07
+        self.read_register(0x0e)
+        i_code = self.buf8[0] >> 1 & 0x07
 
         codes = ["No interrupts", "Error", "Wake-up",
                  "TX0", "TX1", "TX2", "RX0", "RX1"]
