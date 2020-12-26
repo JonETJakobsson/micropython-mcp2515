@@ -17,8 +17,8 @@ class CAN:
         self.mosi = mosi
         self.sck = sck
         self.cs = cs
-        self.msgbuf = bytearray(13) # for loading and retrieving messages
-        self.buf8 = bytearray(1) # for reading adresses
+        self.msgbuf = bytearray(13)  # for loading and retrieving messages
+        self.buf8 = bytearray(1)  # for reading adresses
 
     # SPI helper methods
     def spi_start(self):
@@ -66,12 +66,9 @@ class CAN:
 
         self.spi.write(pack("<B", mcp_spi.READ))
         self.spi.write(pack("<B", address))
-        # TODO: load into preallocated buffers
         self.spi.readinto(self.buf8)
-        #data = unpack("<B", self.spi.read(1))[0]
 
         self.spi_end()
-        #return data
 
     def reset(self):
         self.spi_start()
@@ -276,7 +273,7 @@ class CAN:
 
         self.bitmodify_register(address.CNF1, 0xc0, SJW << 6)
         self.bitmodify_register(address.CNF1, 0x3f, BRP)
-    
+
         # Set configuration register 2
         assert len(bin(BTLMODE)) - 2 <= 1, "BTLMODE must be 0 or 1"
         assert len(bin(SAM)) - 2 <= 1, "SAM must be 0 or 1"
@@ -287,7 +284,6 @@ class CAN:
         self.bitmodify_register(address.CNF2, 0x40, SAM << 6)
         self.bitmodify_register(address.CNF2, 0x38, PHSEG1 << 3)
         self.bitmodify_register(address.CNF2, 0x07, PRESEG)
-
 
         # Set configuration register 3
         assert len(bin(PHSEG2)) - 2 <= 3, "PHSEG2 must be 0 to 7"
@@ -308,7 +304,7 @@ class CAN:
             mask_address = 0x24
             ctrl_address = 0x70
 
-        info = self._prepare_id(id, extendedID)
+        self._prepare_id(id, extendedID)
 
         self.write_register(address=address[filter], data=self.msgbuf[0:4])
         self.write_register(address=mask_address, data=[
@@ -341,7 +337,7 @@ class CAN:
             info[3] = 0
 
         pack_into("<4B", self.msgbuf, 0, *info)
-       
+
     # read messages
     def read_message(self):
         """returns a dictionary containing message info
@@ -354,10 +350,8 @@ class CAN:
         # fetch recieve status
         status = self.rx_status()
         if status["RXB0"] == 1:
-            #info, data = self.read_rx_buffer(buffer=0)
             self.read_rx_buffer(buffer=0)
         elif status["RXB1"] == 1:
-            #info, data = self.read_rx_buffer(buffer=1)
             self.read_rx_buffer(buffer=1)
         else:
             return False  # exit if no buffer is full
